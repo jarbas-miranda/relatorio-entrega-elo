@@ -6,6 +6,7 @@
 <title>Gerador de Relatório de Entrega — Elo Soluções</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <style>
   :root{
     --teal:#1FAE96;
@@ -1044,68 +1045,76 @@ document.getElementById('btnClear').addEventListener('click', ()=>{
   document.getElementById('fotosIxcStatus').innerHTML = '';
 });
 
-// ============ CAMADA DE DADOS REAL — SharePoint + M365 ============
+// ============ CAMADA DE DADOS REAL — SharePoint + M365 + MSAL ============
 const SP_SITE = 'https://elosolucoesempresariais.sharepoint.com/sites/Gesto-EloSolues';
 const SP_API  = `${SP_SITE}/_api/web/lists/getbytitle`;
+const SP_SCOPES = ['https://elosolucoesempresariais.sharepoint.com/AllSites.Write'];
 
-// Identifica o usuário: tenta _spPageContextInfo (SharePoint nativo) primeiro,
-// se não disponível pede email corporativo ao abrir o app.
-(function identificarUsuario(){
-  const _ctx = typeof _spPageContextInfo !== 'undefined' ? _spPageContextInfo : {};
-  if(_ctx.userEmail){
-    window._usuarioNome  = _ctx.userDisplayName || _ctx.userEmail;
-    window._usuarioEmail = _ctx.userEmail;
-    return;
-  }
-  // Não está no contexto SharePoint — pede o email uma vez
-  const emailSalvo = sessionStorage.getItem('elo_user_email');
-  const nomeSalvo  = sessionStorage.getItem('elo_user_nome');
-  if(emailSalvo){
-    window._usuarioEmail = emailSalvo;
-    window._usuarioNome  = nomeSalvo || emailSalvo;
-    return;
-  }
-  // Primeira abertura — exibe modal de identificação
-  document.addEventListener('DOMContentLoaded', ()=>{
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML = `
-      <div style="background:#fff;border-radius:12px;padding:28px 32px;width:100%;max-width:420px;font-family:Arial,sans-serif;">
-        <h2 style="margin:0 0 6px;font-size:17px;color:#0F6E56;">Identificação</h2>
-        <p style="margin:0 0 18px;font-size:13px;color:#5f5e5a;">Digite seu email e nome corporativo para continuar. Esses dados ficam apenas na memória desta aba.</p>
-        <div style="margin-bottom:12px;">
-          <label style="font-size:12px;font-weight:600;color:#5f5e5a;display:block;margin-bottom:4px;">Email corporativo</label>
-          <input id="_loginEmail" type="text" placeholder="Ex: joao@elosolucoes.net.br" style="width:100%;padding:9px 10px;border:1px solid #dcdcdc;border-radius:6px;font-size:14px;box-sizing:border-box;">
-        </div>
-        <div style="margin-bottom:18px;">
-          <label style="font-size:12px;font-weight:600;color:#5f5e5a;display:block;margin-bottom:4px;">Seu nome</label>
-          <input id="_loginNome" type="text" placeholder="Ex: João Silva" style="width:100%;padding:9px 10px;border:1px solid #dcdcdc;border-radius:6px;font-size:14px;box-sizing:border-box;">
-        </div>
-        <p id="_loginErro" style="color:#c0392b;font-size:12px;margin:0 0 10px;display:none;">Preencha email e nome para continuar.</p>
-        <button id="_loginBtn" style="width:100%;background:#1FAE96;color:#fff;border:none;border-radius:7px;padding:11px;font-size:14px;font-weight:700;cursor:pointer;">Entrar</button>
-      </div>`;
-    document.body.appendChild(overlay);
-    document.getElementById('_loginBtn').addEventListener('click', ()=>{
-      const email = document.getElementById('_loginEmail').value.trim();
-      const nome  = document.getElementById('_loginNome').value.trim();
-      if(!email || !nome){
-        document.getElementById('_loginErro').style.display = 'block';
-        return;
-      }
-      sessionStorage.setItem('elo_user_email', email);
-      sessionStorage.setItem('elo_user_nome',  nome);
-      window._usuarioEmail = email;
-      window._usuarioNome  = nome;
-      overlay.remove();
-      renderUserBar();
-    });
-  });
-})();
+// ---- Autenticação Microsoft (MSAL.js) ----
+const _msalApp = new msal.PublicClientApplication({
+  auth: {
+    clientId: 'f3e7747d-fdb0-420d-9819-7fc9e2d6db9c',
+    authority: 'https://login.microsoftonline.com/cca1fc81-f46a-46b6-9ce6-8021ee3a6b81',
+    redirectUri: window.location.origin + window.location.pathname,
+  },
+  cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: false },
+});
 
 let usuarioAtual = {
-  get nome(){ return window._usuarioNome  || 'Usuário desconhecido'; },
-  get email(){ return window._usuarioEmail || ''; },
+  get nome()  { const a = _msalApp.getAllAccounts()[0]; return a ? (a.name || a.username) : 'Não identificado'; },
+  get email() { const a = _msalApp.getAllAccounts()[0]; return a ? a.username : ''; },
 };
+
+async function _msalInit() {
+  await _msalApp.initialize();
+  await _msalApp.handleRedirectPromise();
+  if (_msalApp.getAllAccounts().length > 0) return;
+  await new Promise(resolve => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,110,86,.93);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.innerHTML = `
+      <div style="background:#fff;border-radius:14px;padding:36px 40px;width:100%;max-width:380px;font-family:Arial,sans-serif;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+        <img src="${LOGO_B64}" style="height:44px;margin-bottom:14px;">
+        <h2 style="margin:0 0 4px;font-size:18px;color:#0F6E56;">Relatório de Entrega</h2>
+        <p style="margin:0 0 6px;font-size:12px;color:#888;">Elo Soluções Empresariais</p>
+        <p style="margin:0 0 26px;font-size:13px;color:#5f5e5a;">Entre com sua conta corporativa Microsoft para continuar.</p>
+        <button id="_msalBtn" style="width:100%;background:#0078D4;color:#fff;border:none;border-radius:8px;padding:13px 16px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+          <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+          Entrar com Microsoft
+        </button>
+        <p id="_msalErr" style="color:#c0392b;font-size:12px;margin:14px 0 0;display:none;">Erro ao fazer login. Tente novamente.</p>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('_msalBtn').addEventListener('click', async () => {
+      const btn = document.getElementById('_msalBtn');
+      btn.disabled = true; btn.textContent = 'Aguarde…';
+      try {
+        await _msalApp.loginPopup({ scopes: SP_SCOPES, prompt: 'select_account' });
+        overlay.remove();
+        renderUserBar();
+        resolve();
+      } catch(e) {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Entrar com Microsoft`;
+        document.getElementById('_msalErr').style.display = 'block';
+      }
+    });
+  });
+}
+
+async function getSpToken() {
+  const accounts = _msalApp.getAllAccounts();
+  if (!accounts.length) throw new Error('Não autenticado');
+  try {
+    const r = await _msalApp.acquireTokenSilent({ scopes: SP_SCOPES, account: accounts[0] });
+    return r.accessToken;
+  } catch(e) {
+    const r = await _msalApp.acquireTokenPopup({ scopes: SP_SCOPES });
+    return r.accessToken;
+  }
+}
+
+const _msalReady = _msalInit();
 
 // Cache em memória para não bater na API do SP a cada verificação de admin.
 let _adminsCache = null;
@@ -1113,9 +1122,9 @@ let _adminsCache = null;
 async function carregarAdmins(){
   if(_adminsCache) return _adminsCache;
   try {
+    const token = await getSpToken();
     const resp = await fetch(`${SP_API}('Administradores')/items?$select=Title`, {
-      headers: { Accept: 'application/json;odata=nometadata' },
-      credentials: 'include',
+      headers: { Accept: 'application/json;odata=nometadata', Authorization: `Bearer ${token}` },
     });
     const data = await resp.json();
     _adminsCache = (data.value || []).map(i => (i.Title||'').toLowerCase().trim());
@@ -1138,28 +1147,16 @@ function gerarIdRelatorio(){
   return 'rel_' + Date.now() + '_' + Math.floor(Math.random()*1000);
 }
 
-// Retorna o digest de segurança necessário para operações de escrita no SharePoint.
-async function spGetDigest(){
-  const resp = await fetch(`${SP_SITE}/_api/contextinfo`, {
-    method: 'POST',
-    headers: { Accept: 'application/json;odata=nometadata' },
-    credentials: 'include',
-  });
-  const data = await resp.json();
-  return data.FormDigestValue;
-}
-
 // Cria um item na lista SharePoint e retorna o item criado.
 async function spCriarItem(lista, campos){
-  const digest = await spGetDigest();
+  const token = await getSpToken();
   const resp = await fetch(`${SP_API}('${lista}')/items`, {
     method: 'POST',
     headers: {
       Accept: 'application/json;odata=nometadata',
       'Content-Type': 'application/json;odata=nometadata',
-      'X-RequestDigest': digest,
+      Authorization: `Bearer ${token}`,
     },
-    credentials: 'include',
     body: JSON.stringify(campos),
   });
   if(!resp.ok) throw new Error('Erro ao gravar no SharePoint: ' + resp.status);
@@ -1168,11 +1165,11 @@ async function spCriarItem(lista, campos){
 
 // Busca itens de uma lista com filtro OData opcional.
 async function spBuscarItens(lista, filtro='', select='*', top=500){
+  const token = await getSpToken();
   let url = `${SP_API}('${lista}')/items?$select=${select}&$top=${top}`;
   if(filtro) url += `&$filter=${encodeURIComponent(filtro)}`;
   const resp = await fetch(url, {
-    headers: { Accept: 'application/json;odata=nometadata' },
-    credentials: 'include',
+    headers: { Accept: 'application/json;odata=nometadata', Authorization: `Bearer ${token}` },
   });
   if(!resp.ok) throw new Error('Erro ao ler SharePoint: ' + resp.status);
   const data = await resp.json();
@@ -1814,16 +1811,17 @@ Responda SOMENTE em JSON, sem nenhum texto antes ou depois, neste formato exato:
   };
 }
 
-// ============ USER BAR — usuário real via _spPageContextInfo ============
+// ============ USER BAR — usuário via MSAL (Microsoft Entra ID) ============
 async function renderUserBar(){
+  await _msalReady;
   const isAdmin = await ehAdmin(usuarioAtual.email);
   const semUsuario = !usuarioAtual.email;
   document.getElementById('userBar').innerHTML = `
     <span>👤 Logado como <b>${escapeHtml(usuarioAtual.nome || 'Desconhecido')}</b>${usuarioAtual.email ? ' (' + escapeHtml(usuarioAtual.email) + ')' : ''}</span>
     ${isAdmin ? '<span class="admin-badge">ADMIN</span>' : ''}
-    ${semUsuario ? '<span style="margin-left:auto;font-size:11px;color:#c0392b;">⚠️ Usuário não identificado — abra o app pelo SharePoint</span>' : ''}
+    ${semUsuario ? '<span style="margin-left:auto;font-size:11px;color:#c0392b;">⚠️ Usuário não identificado</span>' : ''}
+    <button onclick="_msalApp.logoutPopup().then(()=>location.reload())" style="margin-left:auto;background:none;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;">Sair</button>
   `;
-  // aviso removido — identificação feita via modal de login
 }
 
 // ============ MODAL HELPERS ============
