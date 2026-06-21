@@ -403,17 +403,10 @@
 
     <!-- Painel de credenciais IXC removido: autenticação agora via Power Automate -->
 
-    <div class="grid grid-3" style="align-items:end;">
+    <div class="grid grid-2" style="align-items:end;">
       <div class="field">
-        <label>Buscar por</label>
-        <select id="ixcSearchType">
-          <option value="cliente">ID Cliente</option>
-          <option value="os">Número da OS</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Valor</label>
-        <input type="text" id="ixcSearchValue" placeholder="Ex: 155">
+        <label>Número da OS</label>
+        <input type="text" id="ixcSearchValue" placeholder="Ex: 83768">
       </div>
       <button class="btn btn-teal" id="btnIxcBuscar" type="button" style="height:36px;">🔍 Buscar e preencher</button>
     </div>
@@ -1390,26 +1383,25 @@ function ixcAuthHeader(){
 // O app deposita um pedido na FilaIXC, o Power Automate processa e grava em ResultadoIXC.
 // O app fica consultando ResultadoIXC até o resultado aparecer (polling).
 async function ixcListar(endpoint, qtype, query, oper='='){
-  const solicitacaoId = gerarIdRelatorio();
+  const solicitacaoId = gerarIdRelatorio(); // ID único para esta solicitação
 
-  // Deposita pedido na fila
+  // Deposita pedido na fila com ID único no Title
   await spCriarItem('FilaIXC', {
-    Title:        query,
+    Title:        solicitacaoId,
     TipoBusca:    qtype,
     ValorBusca:   query,
     Status:       'pendente',
     SolicitadoPor: usuarioAtual.email,
   });
 
-  // Aguarda o resultado (polling a cada 2s por até 30s)
+  // Aguarda o resultado usando o ID único (polling a cada 2s por até 30s)
   const MAX_TENTATIVAS = 15;
   for(let i = 0; i < MAX_TENTATIVAS; i++){
     await new Promise(r => setTimeout(r, 2000));
     const resultados = await spBuscarItens('ResultadoIXC',
-      `IdSolicitacao eq '${query}'`, 'Resultado,Status', 1);
+      `IdSolicitacao eq '${solicitacaoId}'`, 'Resultado,Status', 1);
     if(resultados.length && resultados[0].Status === 'concluido'){
       const raw = resultados[0].Resultado;
-      // O Power Automate pode retornar string ou objeto
       return typeof raw === 'string' ? JSON.parse(raw) : raw;
     }
   }
@@ -1448,11 +1440,10 @@ function ixcErrorMessage(err){
 }
 
 document.getElementById('btnIxcBuscar').addEventListener('click', async ()=>{
-  const searchType = document.getElementById('ixcSearchType').value;
   const searchValue = document.getElementById('ixcSearchValue').value.trim();
 
   if(!searchValue){
-    setIxcStatus('Informe o ID do cliente ou o número da OS para buscar.', 'error');
+    setIxcStatus('Informe o número da OS para buscar.', 'error');
     return;
   }
 
@@ -1464,23 +1455,14 @@ document.getElementById('btnIxcBuscar').addEventListener('click', async ()=>{
     let osRecord = null;
     let clienteId = null;
 
-    if(searchType === 'os'){
-      const osData = await ixcListar('su_oss_chamado', 'su_oss_chamado.id', searchValue, '=');
-      osRecord = pickFirstRegistro(osData);
-      if(!osRecord){
-        setIxcStatus(`Nenhuma OS encontrada com o número <b>${escapeHtml(searchValue)}</b>. Confira o número e tente novamente.`, 'error');
-        btn.disabled = false;
-        return;
-      }
-      clienteId = osRecord.id_cliente || osRecord.id_assunto_cliente || null;
-    } else {
-      clienteId = searchValue;
-      // Try to find the most recent OS for this client (optional, best-effort)
-      try {
-        const osData = await ixcListar('su_oss_chamado', 'su_oss_chamado.id_cliente', clienteId, '=');
-        osRecord = pickFirstRegistro(osData);
-      } catch(e){ /* non-fatal: proceed without OS data */ }
+    const osData = await ixcListar('su_oss_chamado', 'su_oss_chamado.id', searchValue, '=');
+    osRecord = pickFirstRegistro(osData);
+    if(!osRecord){
+      setIxcStatus(`Nenhuma OS encontrada com o número <b>${escapeHtml(searchValue)}</b>. Confira o número e tente novamente.`, 'error');
+      btn.disabled = false;
+      return;
     }
+    clienteId = osRecord.id_cliente || osRecord.id_assunto_cliente || null;
 
     if(!clienteId){
       setIxcStatus('Não foi possível identificar o cliente vinculado a essa OS. Você pode preencher os dados manualmente.', 'error');
