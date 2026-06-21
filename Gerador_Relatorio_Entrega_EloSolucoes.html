@@ -1069,37 +1069,34 @@ async function _msalInit() {
   await _msalApp.initialize();
   await _msalApp.handleRedirectPromise();
   if (_msalApp.getAllAccounts().length > 0) return;
-  await new Promise(resolve => {
-    const overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,110,86,.93);z-index:9999;display:flex;align-items:center;justify-content:center;';
-    overlay.innerHTML = `
-      <div style="background:#fff;border-radius:14px;padding:36px 40px;width:100%;max-width:380px;font-family:Arial,sans-serif;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2);">
-        <img src="${LOGO_B64}" style="height:44px;margin-bottom:14px;">
-        <h2 style="margin:0 0 4px;font-size:18px;color:#0F6E56;">Relatório de Entrega</h2>
-        <p style="margin:0 0 6px;font-size:12px;color:#888;">Elo Soluções Empresariais</p>
-        <p style="margin:0 0 26px;font-size:13px;color:#5f5e5a;">Entre com sua conta corporativa Microsoft para continuar.</p>
-        <button id="_msalBtn" style="width:100%;background:#0078D4;color:#fff;border:none;border-radius:8px;padding:13px 16px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
-          <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
-          Entrar com Microsoft
-        </button>
-        <p id="_msalErr" style="color:#c0392b;font-size:12px;margin:14px 0 0;display:none;">Erro ao fazer login. Tente novamente.</p>
-      </div>`;
-    document.body.appendChild(overlay);
-    document.getElementById('_msalBtn').addEventListener('click', async () => {
-      const btn = document.getElementById('_msalBtn');
-      btn.disabled = true; btn.textContent = 'Aguarde…';
-      try {
-        await _msalApp.loginPopup({ scopes: SP_SCOPES, prompt: 'select_account' });
-        overlay.remove();
-        renderUserBar();
-        resolve();
-      } catch(e) {
-        btn.disabled = false;
-        btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Entrar com Microsoft`;
-        document.getElementById('_msalErr').style.display = 'block';
-      }
-    });
+  // Nenhuma conta — exibe tela de login e aguarda clique (página será redirecionada)
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,110,86,.93);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:36px 40px;width:100%;max-width:380px;font-family:Arial,sans-serif;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2);">
+      <img src="${LOGO_B64}" style="height:44px;margin-bottom:14px;">
+      <h2 style="margin:0 0 4px;font-size:18px;color:#0F6E56;">Relatório de Entrega</h2>
+      <p style="margin:0 0 6px;font-size:12px;color:#888;">Elo Soluções Empresariais</p>
+      <p style="margin:0 0 26px;font-size:13px;color:#5f5e5a;">Entre com sua conta corporativa Microsoft para continuar.</p>
+      <button id="_msalBtn" style="width:100%;background:#0078D4;color:#fff;border:none;border-radius:8px;padding:13px 16px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;">
+        <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+        Entrar com Microsoft
+      </button>
+      <p id="_msalErr" style="color:#c0392b;font-size:12px;margin:14px 0 0;display:none;">Erro ao redirecionar. Tente novamente.</p>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.getElementById('_msalBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('_msalBtn');
+    btn.disabled = true; btn.textContent = 'Redirecionando…';
+    try {
+      await _msalApp.loginRedirect({ scopes: SP_SCOPES });
+    } catch(e) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg> Entrar com Microsoft`;
+      document.getElementById('_msalErr').style.display = 'block';
+    }
   });
+  await new Promise(() => {}); // aguarda redirecionamento — não resolve
 }
 
 async function getSpToken() {
@@ -1109,8 +1106,8 @@ async function getSpToken() {
     const r = await _msalApp.acquireTokenSilent({ scopes: SP_SCOPES, account: accounts[0] });
     return r.accessToken;
   } catch(e) {
-    const r = await _msalApp.acquireTokenPopup({ scopes: SP_SCOPES });
-    return r.accessToken;
+    await _msalApp.acquireTokenRedirect({ scopes: SP_SCOPES });
+    throw new Error('Redirecionando para autenticação...');
   }
 }
 
