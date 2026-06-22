@@ -999,12 +999,20 @@ document.getElementById('btnPDF').addEventListener('click', async ()=>{
   try {
     const cliente = (val('cliente') || 'cliente').replace(/[^a-z0-9]+/gi,'_');
 
-    const registroSalvo = await salvarRelatorio({ origemRetificacao, motivoRetificacao, camposAlterados });
-    origemPendente = null;
-    await renderizarPdfEhBaixar(`Relatorio_Entrega_${cliente}_v${registroSalvo.versao}.pdf`);
+    let registroSalvo = null;
+    try {
+      registroSalvo = await salvarRelatorio({ origemRetificacao, motivoRetificacao, camposAlterados });
+      origemPendente = null;
+    } catch(saveErr){
+      console.error('Erro ao salvar no SharePoint:', saveErr);
+      setIxcStatus('Aviso: não foi possível salvar no histórico (SharePoint). O PDF será gerado normalmente.', 'error');
+    }
 
-    if(origemRetificacao !== 'original'){
-      setIxcStatus(`Nova versão (v${registroSalvo.versao}) salva no histórico. Motivo registrado: "${escapeHtml(motivoRetificacao)}"`, 'success');
+    const versao = registroSalvo?.versao || 1;
+    await renderizarPdfEhBaixar(`Relatorio_Entrega_${cliente}_v${versao}.pdf`);
+
+    if(registroSalvo && origemRetificacao !== 'original'){
+      setIxcStatus(`Nova versão (v${versao}) salva no histórico. Motivo registrado: "${escapeHtml(motivoRetificacao)}"`, 'success');
     }
   } catch(err){
     alert('Erro ao gerar PDF: ' + err.message);
