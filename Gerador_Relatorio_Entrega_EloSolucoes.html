@@ -456,8 +456,8 @@
       <span class="num">4</span> Evidências fotográficas
       <span id="photoCountBadge" style="margin-left:auto;font-size:11.5px;font-weight:400;color:var(--muted);">0 / 15 fotos</span>
     </h2>
-    <p class="hint">Envie manualmente, ou busque automaticamente todas as evidências já anexadas à OS na IXC.</p>
-    <button class="btn btn-teal btn-sm" id="btnFetchFotosIxc" type="button" style="margin-bottom:12px;">📸 Buscar fotos da OS na IXC</button>
+    <p class="hint">Envie manualmente, ou busque automaticamente todas as evidências já anexadas à O.S. no IXC.</p>
+    <button class="btn btn-teal btn-sm" id="btnFetchFotosIxc" type="button" style="margin-bottom:12px;">📸 Buscar fotos da O.S. no IXC</button>
     <div id="fotosIxcStatus"></div>
     <div class="photo-grid" id="photoGrid"></div>
     <button class="btn btn-outline btn-sm" id="addPhotoSlot" style="margin-top:10px;" type="button">+ Adicionar slot de foto</button>
@@ -821,7 +821,7 @@ function buildPrintSheets(){
     <p class="sheet-subtitle">${d.idCliente ? 'ID CLIENTE: '+escapeHtml(d.idCliente) : ''}</p>
     <p><b>Cliente:</b> ${escapeHtml(d.cliente)}</p>
     <p><b>ID TECNOLOGIA:</b> ${escapeHtml(d.idTecnologia)}</p>
-    <p>Nome da empresa: ${escapeHtml(d.nomeEmpresa)}</p>
+    <p>Nome Fantasia: ${escapeHtml(d.nomeEmpresa)}</p>
     <p>Endereço de instalação: ${escapeHtml(d.endereco)}</p>
     <p style="margin-top:10px;">IP: ${escapeHtml(d.ip)}</p>
     <p>MSK: ${escapeHtml(d.msk)}</p>
