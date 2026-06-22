@@ -1419,12 +1419,12 @@ function pickFirstRegistro(data){
 
 function ixcErrorMessage(err){
   if(err.message === 'NETWORK_OR_CORS'){
-    return `Não foi possível conectar ao servidor IXC a partir do navegador.<br>
-      Isso geralmente acontece por <b>bloqueio de CORS</b> no servidor (o servidor não autoriza chamadas vindas do navegador) ou host incorreto.<br>
+    return `O fluxo Power Automate não retornou resposta dentro do tempo esperado.<br>
+      Possíveis causas:<br>
       <ul>
-        <li>Confira se o <b>Host</b> está exatamente como configurado no IXC (com https://)</li>
-        <li>Peça ao responsável pelo servidor IXC para liberar CORS para o domínio/origem de onde este app é aberto</li>
-        <li>Se estiver abrindo o arquivo localmente (file://), tente hospedá-lo numa página simples (ex: SharePoint, OneDrive com link, ou servidor interno)</li>
+        <li>O fluxo <b>Proxy_IXC</b> está desativado ou com erro — verifique o histórico de execuções no Power Automate</li>
+        <li>A OS informada não existe na IXC</li>
+        <li>A lista <b>FilaIXC</b> ou <b>ResultadoIXC</b> no SharePoint está inacessível</li>
       </ul>`;
   }
   if(err.message === 'UNAUTHORIZED'){
